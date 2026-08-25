@@ -4,6 +4,9 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../services/permission_service.dart';
 import '../ble/ble_service.dart';
 
+import '../models/medicine.dart';
+import 'medicine_screen.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -16,6 +19,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final BleService bleService = BleService();
 
   List<BluetoothDevice> devices = [];
+
+  Medicine? medicine;
 
   Future<void> scanDevices() async {
     devices = await bleService.scanDevices();
@@ -38,7 +43,22 @@ class _HomeScreenState extends State<HomeScreen> {
       "${selectedTime.minute.toString().padLeft(2, '0')}",
     );
 
-    await bleService.sendSchedule(device, 1, 46, "Vitamin D");
+    if (medicine == null) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please add a medicine first")),
+      );
+
+      return;
+    }
+
+    await bleService.sendSchedule(
+      device,
+      medicine!.hour,
+      medicine!.minute,
+      medicine!.name,
+    );
 
     if (!context.mounted) return;
 
@@ -61,6 +81,38 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Column(
         children: [
           const SizedBox(height: 20),
+
+          ElevatedButton(
+            onPressed: () async {
+              final Medicine? result = await Navigator.push<Medicine>(
+                context,
+                MaterialPageRoute(builder: (context) => const MedicineScreen()),
+              );
+
+              if (result != null) {
+                setState(() {
+                  medicine = result;
+                });
+
+                debugPrint(
+                  "Medicine selected: ${medicine!.name} "
+                  "${medicine!.hour.toString().padLeft(2, '0')}:"
+                  "${medicine!.minute.toString().padLeft(2, '0')}",
+                );
+              }
+            },
+            child: const Text("Add Medicine"),
+          ),
+
+          if (medicine != null)
+            ListTile(
+              leading: const Icon(Icons.medication),
+              title: Text(medicine!.name),
+              subtitle: Text(
+                "${medicine!.hour.toString().padLeft(2, '0')}:"
+                "${medicine!.minute.toString().padLeft(2, '0')}",
+              ),
+            ),
 
           ElevatedButton(
             onPressed: () async {
@@ -114,8 +166,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
                     await Future.delayed(const Duration(milliseconds: 500));
 
-                    // Ask user for reminder time
-                    await selectReminderTime(device);
+                    if (medicine != null) {
+                      await bleService.sendSchedule(
+                        device,
+                        medicine!.hour,
+                        medicine!.minute,
+                        medicine!.name,
+                      );
+                    }
 
                     if (!context.mounted) return;
 
