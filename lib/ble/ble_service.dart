@@ -208,16 +208,38 @@ class BleService {
     BluetoothDevice device,
     int hour,
     int minute,
+    String medicineName,
   ) async {
-    List<int> packet = [
-      0x03, // CMD_SET_SCHEDULE
-      hour,
-      minute,
-    ];
+    List<int> packet = [0x03, hour, minute, ...medicineName.codeUnits];
 
     await sendPacket(device, packet);
 
-    print("Schedule Packet Sent");
+    print(
+      "Schedule Packet Sent: "
+      "$medicineName at "
+      "${hour.toString().padLeft(2, '0')}:"
+      "${minute.toString().padLeft(2, '0')}",
+    );
+  }
+
+  Future<void> testReminder(BluetoothDevice device) async {
+    final now = DateTime.now();
+
+    // Set reminder 2 minutes from now
+    final reminderTime = now.add(const Duration(minutes: 2));
+
+    print(
+      "Setting test reminder: "
+      "${reminderTime.hour.toString().padLeft(2, '0')}:"
+      "${reminderTime.minute.toString().padLeft(2, '0')}",
+    );
+
+    await sendSchedule(
+      device,
+      reminderTime.hour,
+      reminderTime.minute,
+      "Vitamin D",
+    );
   }
 
   Future<void> disconnectDevice(BluetoothDevice device) async {

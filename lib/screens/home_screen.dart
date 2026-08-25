@@ -12,23 +12,52 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Create the object here
   final PermissionService permissionService = PermissionService();
-
   final BleService bleService = BleService();
 
   List<BluetoothDevice> devices = [];
 
   Future<void> scanDevices() async {
     devices = await bleService.scanDevices();
-
     setState(() {});
+  }
+
+  Future<void> selectReminderTime(BluetoothDevice device) async {
+    final TimeOfDay? selectedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+
+    if (selectedTime == null) {
+      return;
+    }
+
+    print(
+      "Selected Reminder Time: "
+      "${selectedTime.hour.toString().padLeft(2, '0')}:"
+      "${selectedTime.minute.toString().padLeft(2, '0')}",
+    );
+
+    await bleService.sendSchedule(device, 1, 46, "Vitamin D");
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          "Reminder set for "
+          "${selectedTime.hour.toString().padLeft(2, '0')}:"
+          "${selectedTime.minute.toString().padLeft(2, '0')}",
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("MedLink")),
+
       body: Column(
         children: [
           const SizedBox(height: 20),
@@ -39,7 +68,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
               if (!granted) {
                 debugPrint("Permission Denied");
-
                 return;
               }
 
@@ -47,7 +75,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
               await scanDevices();
             },
-
             child: const Text("Scan Devices"),
           ),
 
@@ -82,11 +109,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       return;
                     }
 
+                    // Synchronize watch time
                     await bleService.sendTime(device);
 
                     await Future.delayed(const Duration(milliseconds: 500));
 
-                    await bleService.sendSchedule(device, 01, 37);
+                    // Ask user for reminder time
+                    await selectReminderTime(device);
 
                     if (!context.mounted) return;
 
