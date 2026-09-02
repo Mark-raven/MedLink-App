@@ -6,6 +6,7 @@ import '../ble/ble_service.dart';
 
 import '../models/medicine.dart';
 import 'medicine_screen.dart';
+import '../services/storage_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,6 +18,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final PermissionService permissionService = PermissionService();
   final BleService bleService = BleService();
+  final StorageService storageService = StorageService();
 
   List<BluetoothDevice> devices = [];
 
@@ -74,6 +76,22 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    loadSavedMedicine();
+  }
+
+  Future<void> loadSavedMedicine() async {
+    final Medicine? savedMedicine = await storageService.loadMedicine();
+
+    if (!mounted) return;
+
+    setState(() {
+      medicine = savedMedicine;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("MedLink")),
@@ -93,6 +111,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 setState(() {
                   medicine = result;
                 });
+
+                await storageService.saveMedicine(result);
 
                 debugPrint(
                   "Medicine selected: ${medicine!.name} "
