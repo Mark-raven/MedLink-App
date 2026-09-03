@@ -22,72 +22,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<BluetoothDevice> devices = [];
 
-  Medicine? medicine;
+  List<Medicine> medicines = [];
 
   Future<void> scanDevices() async {
     devices = await bleService.scanDevices();
     setState(() {});
   }
 
-  Future<void> selectReminderTime(BluetoothDevice device) async {
-    final TimeOfDay? selectedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-    );
-
-    if (selectedTime == null) {
-      return;
-    }
-
-    print(
-      "Selected Reminder Time: "
-      "${selectedTime.hour.toString().padLeft(2, '0')}:"
-      "${selectedTime.minute.toString().padLeft(2, '0')}",
-    );
-
-    if (medicine == null) {
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please add a medicine first")),
-      );
-
-      return;
-    }
-
-    await bleService.sendSchedule(
-      device,
-      medicine!.hour,
-      medicine!.minute,
-      medicine!.name,
-    );
-
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          "Reminder set for "
-          "${selectedTime.hour.toString().padLeft(2, '0')}:"
-          "${selectedTime.minute.toString().padLeft(2, '0')}",
-        ),
-      ),
-    );
-  }
-
   @override
   void initState() {
     super.initState();
-    loadSavedMedicine();
+    loadSavedMedicines();
   }
 
-  Future<void> loadSavedMedicine() async {
-    final Medicine? savedMedicine = await storageService.loadMedicine();
+  Future<void> loadSavedMedicines() async {
+    final List<Medicine> savedMedicines = await storageService.loadMedicines();
 
     if (!mounted) return;
 
     setState(() {
-      medicine = savedMedicine;
+      medicines = savedMedicines;
     });
   }
 
@@ -109,29 +63,38 @@ class _HomeScreenState extends State<HomeScreen> {
 
               if (result != null) {
                 setState(() {
-                  medicine = result;
+                  medicines.add(result);
                 });
 
-                await storageService.saveMedicine(result);
+                await storageService.saveMedicines(medicines);
 
                 debugPrint(
-                  "Medicine selected: ${medicine!.name} "
-                  "${medicine!.hour.toString().padLeft(2, '0')}:"
-                  "${medicine!.minute.toString().padLeft(2, '0')}",
+                  "Medicine added: ${result.name} "
+                  "${result.hour.toString().padLeft(2, '0')}:"
+                  "${result.minute.toString().padLeft(2, '0')}",
                 );
               }
             },
             child: const Text("Add Medicine"),
           ),
 
-          if (medicine != null)
-            ListTile(
-              leading: const Icon(Icons.medication),
-              title: Text(medicine!.name),
-              subtitle: Text(
-                "${medicine!.hour.toString().padLeft(2, '0')}:"
-                "${medicine!.minute.toString().padLeft(2, '0')}",
-              ),
+          if (medicines.isEmpty)
+            const ListTile(
+              leading: Icon(Icons.medication_outlined),
+              title: Text("No medicines added"),
+            )
+          else
+            Column(
+              children: medicines.map((medicine) {
+                return ListTile(
+                  leading: const Icon(Icons.medication),
+                  title: Text(medicine.name),
+                  subtitle: Text(
+                    "${medicine.hour.toString().padLeft(2, '0')}:"
+                    "${medicine.minute.toString().padLeft(2, '0')}",
+                  ),
+                );
+              }).toList(),
             ),
 
           ElevatedButton(
@@ -186,14 +149,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
                     await Future.delayed(const Duration(milliseconds: 500));
 
-                    if (medicine != null) {
-                      await bleService.sendSchedule(
-                        device,
-                        medicine!.hour,
-                        medicine!.minute,
-                        medicine!.name,
-                      );
-                    }
+                    // if (medicine != null) {
+                    //   await bleService.sendSchedule(
+                    //     device,
+                    //     medicine!.hour,
+                    //     medicine!.minute,
+                    //     medicine!.name,
+                    //   );
+                    // }
 
                     if (!context.mounted) return;
 

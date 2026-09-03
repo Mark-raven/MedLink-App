@@ -1,41 +1,41 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/medicine.dart';
 
 class StorageService {
-  static const String _medicineNameKey = 'medicine_name';
-  static const String _medicineHourKey = 'medicine_hour';
-  static const String _medicineMinuteKey = 'medicine_minute';
+  static const String _medicinesKey = 'medicines';
 
-  Future<void> saveMedicine(Medicine medicine) async {
+  Future<void> saveMedicines(List<Medicine> medicines) async {
     final prefs = await SharedPreferences.getInstance();
 
-    await prefs.setString(_medicineNameKey, medicine.name);
+    final List<Map<String, dynamic>> jsonList = medicines
+        .map((medicine) => medicine.toJson())
+        .toList();
 
-    await prefs.setInt(_medicineHourKey, medicine.hour);
-
-    await prefs.setInt(_medicineMinuteKey, medicine.minute);
+    await prefs.setString(_medicinesKey, jsonEncode(jsonList));
   }
 
-  Future<Medicine?> loadMedicine() async {
+  Future<List<Medicine>> loadMedicines() async {
     final prefs = await SharedPreferences.getInstance();
 
-    final String? name = prefs.getString(_medicineNameKey);
-    final int? hour = prefs.getInt(_medicineHourKey);
-    final int? minute = prefs.getInt(_medicineMinuteKey);
+    final String? storedData = prefs.getString(_medicinesKey);
 
-    if (name == null || hour == null || minute == null) {
-      return null;
+    if (storedData == null) {
+      return [];
     }
 
-    return Medicine(name: name, hour: hour, minute: minute);
+    final List<dynamic> jsonList = jsonDecode(storedData);
+
+    return jsonList
+        .map((json) => Medicine.fromJson(json as Map<String, dynamic>))
+        .toList();
   }
 
-  Future<void> clearMedicine() async {
+  Future<void> clearMedicines() async {
     final prefs = await SharedPreferences.getInstance();
 
-    await prefs.remove(_medicineNameKey);
-    await prefs.remove(_medicineHourKey);
-    await prefs.remove(_medicineMinuteKey);
+    await prefs.remove(_medicinesKey);
   }
 }
