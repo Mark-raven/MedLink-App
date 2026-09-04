@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import '../models/medicine.dart';
 
 const String MEDLINK_SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0";
 
@@ -222,6 +223,19 @@ class BleService {
     );
   }
 
+  Future<void> sendAllSchedules(
+    BluetoothDevice device,
+    List<Medicine> medicines,
+  ) async {
+    for (final medicine in medicines) {
+      await sendSchedule(device, medicine.hour, medicine.minute, medicine.name);
+
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+
+    print("All schedules sent: ${medicines.length}");
+  }
+
   Future<void> testReminder(BluetoothDevice device) async {
     final now = DateTime.now();
 
@@ -240,6 +254,12 @@ class BleService {
       reminderTime.minute,
       "Vitamin D",
     );
+  }
+
+  Future<void> clearSchedule(BluetoothDevice device) async {
+    final List<int> packet = [0x04];
+
+    await sendPacket(device, packet);
   }
 
   Future<void> disconnectDevice(BluetoothDevice device) async {

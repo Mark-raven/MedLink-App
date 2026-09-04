@@ -144,19 +144,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       return;
                     }
 
-                    // Synchronize watch time
                     await bleService.sendTime(device);
 
                     await Future.delayed(const Duration(milliseconds: 500));
 
-                    // if (medicine != null) {
-                    //   await bleService.sendSchedule(
-                    //     device,
-                    //     medicine!.hour,
-                    //     medicine!.minute,
-                    //     medicine!.name,
-                    //   );
-                    // }
+                    await bleService.clearSchedule(device);
+
+                    await Future.delayed(const Duration(milliseconds: 200));
+
+                    await bleService.sendAllSchedules(device, medicines);
 
                     if (!context.mounted) return;
 
