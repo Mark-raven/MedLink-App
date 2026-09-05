@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
@@ -19,20 +20,87 @@ class _HomeScreenState extends State<HomeScreen> {
   final PermissionService permissionService = PermissionService();
   final BleService bleService = BleService();
   final StorageService storageService = StorageService();
+  StreamSubscription<List<BluetoothDevice>>? scanResultsSubscription;
 
   List<BluetoothDevice> devices = [];
 
   List<Medicine> medicines = [];
 
+  bool isScanning = false;
+
   Future<void> scanDevices() async {
-    devices = await bleService.scanDevices();
-    setState(() {});
+    if (isScanning) return;
+
+    setState(() {
+      isScanning = true;
+      devices = [];
+    });
+
+    try {
+      await bleService.startScan();
+
+      // Wait for the automatic 5-second scan timeout.
+      await Future.delayed(const Duration(seconds: 5));
+
+      final scannedDevices = await bleService.stopScan();
+
+      if (!mounted) return;
+
+      setState(() {
+        devices = scannedDevices;
+        isScanning = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isScanning = false;
+      });
+
+      debugPrint("Scan failed: $e");
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to scan for devices")),
+      );
+    }
+  }
+
+  Future<void> stopScanning() async {
+    if (!isScanning) return;
+
+    final scannedDevices = await bleService.stopScan();
+
+    if (!mounted) return;
+
+    setState(() {
+      devices = scannedDevices;
+      isScanning = false;
+    });
+
+    debugPrint("Scanning stopped by user");
   }
 
   @override
   void initState() {
     super.initState();
+
     loadSavedMedicines();
+
+    scanResultsSubscription = bleService.scanResultsStream.listen((
+      scannedDevices,
+    ) {
+      if (!mounted) return;
+
+      setState(() {
+        devices = scannedDevices;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    scanResultsSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> loadSavedMedicines() async {
@@ -143,19 +211,44 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
 
           ElevatedButton(
-            onPressed: () async {
-              bool granted = await permissionService.requestPermissions();
+            onPressed: isScanning
+                ? stopScanning
+                : () async {
+                    bool granted = await permissionService.requestPermissions();
 
-              if (!granted) {
-                debugPrint("Permission Denied");
-                return;
-              }
+                    if (!granted) {
+                      debugPrint("Permission Denied");
 
-              debugPrint("Scanning...");
+                      if (!context.mounted) return;
 
-              await scanDevices();
-            },
-            child: const Text("Scan Devices"),
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            "Bluetooth permissions are required to scan.",
+                          ),
+                        ),
+                      );
+
+                      return;
+                    }
+
+                    debugPrint("Scanning...");
+                    await scanDevices();
+                  },
+            child: isScanning
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 10),
+                      Text("Stop Scanning"),
+                    ],
+                  )
+                : const Text("Scan Devices"),
           ),
 
           Expanded(

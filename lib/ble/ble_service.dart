@@ -10,29 +10,78 @@ const String MEDLINK_TX_UUID = "12345678-1234-5678-1234-56789abcdef2";
 
 class BleService {
   StreamSubscription<List<int>>? notificationSubscription;
+  StreamSubscription<List<ScanResult>>? scanSubscription;
+
+  final StreamController<List<BluetoothDevice>> scanResultsController =
+      StreamController<List<BluetoothDevice>>.broadcast();
+
+  Stream<List<BluetoothDevice>> get scanResultsStream =>
+      scanResultsController.stream;
 
   BluetoothCharacteristic? rxChar;
   BluetoothCharacteristic? txChar;
 
-  Future<List<BluetoothDevice>> scanDevices() async {
-    List<BluetoothDevice> devices = [];
+  bool isScanning = false;
 
-    // Clear previous scan results
-    FlutterBluePlus.scanResults.listen((results) {
+  final List<BluetoothDevice> scannedDevices = [];
+
+  Future<void> startScan() async {
+    if (isScanning) return;
+
+    isScanning = true;
+    scannedDevices.clear();
+
+    await scanSubscription?.cancel();
+
+    scanSubscription = FlutterBluePlus.scanResults.listen((results) {
       for (final result in results) {
-        if (!devices.any((d) => d.remoteId == result.device.remoteId)) {
-          devices.add(result.device);
+        if (!scannedDevices.any(
+          (device) => device.remoteId == result.device.remoteId,
+        )) {
+          scannedDevices.add(result.device);
+
+          scanResultsController.add(List<BluetoothDevice>.from(scannedDevices));
         }
       }
     });
 
-    await FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
+    try {
+      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
+    } catch (e) {
+      print("Scan failed: $e");
 
-    await Future.delayed(const Duration(seconds: 5));
+      await scanSubscription?.cancel();
+      scanSubscription = null;
 
-    await FlutterBluePlus.stopScan();
+      isScanning = false;
 
-    return devices;
+      rethrow;
+    }
+  }
+
+  Future<List<BluetoothDevice>> stopScan() async {
+    if (!isScanning) {
+      return List<BluetoothDevice>.from(scannedDevices);
+    }
+
+    try {
+      await FlutterBluePlus.stopScan();
+    } catch (e) {
+      print("Stop scan error: $e");
+    }
+
+    await scanSubscription?.cancel();
+    scanSubscription = null;
+
+    isScanning = false;
+
+    return List<BluetoothDevice>.from(scannedDevices);
+  }
+
+  Future<void> dispose() async {
+    await scanSubscription?.cancel();
+    await notificationSubscription?.cancel();
+    await scanResultsController.close();
   }
 
   Future<bool> connectToDevice(BluetoothDevice device) async {
