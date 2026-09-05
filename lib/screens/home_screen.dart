@@ -27,9 +27,10 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Medicine> medicines = [];
 
   bool isScanning = false;
+  bool isScanCooldown = false;
 
   Future<void> scanDevices() async {
-    if (isScanning) return;
+    if (isScanning || isScanCooldown) return;
 
     setState(() {
       isScanning = true;
@@ -50,6 +51,8 @@ class _HomeScreenState extends State<HomeScreen> {
         devices = scannedDevices;
         isScanning = false;
       });
+
+      await startScanCooldown();
     } catch (e) {
       if (!mounted) return;
 
@@ -65,6 +68,22 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> startScanCooldown() async {
+    if (!mounted) return;
+
+    setState(() {
+      isScanCooldown = true;
+    });
+
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+
+    setState(() {
+      isScanCooldown = false;
+    });
+  }
+
   Future<void> stopScanning() async {
     if (!isScanning) return;
 
@@ -78,6 +97,8 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     debugPrint("Scanning stopped by user");
+
+    await startScanCooldown();
   }
 
   @override
@@ -213,6 +234,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ElevatedButton(
             onPressed: isScanning
                 ? stopScanning
+                : isScanCooldown
+                ? null
                 : () async {
                     bool granted = await permissionService.requestPermissions();
 
@@ -248,6 +271,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text("Stop Scanning"),
                     ],
                   )
+                : isScanCooldown
+                ? const Text("Please wait...")
                 : const Text("Scan Devices"),
           ),
 
