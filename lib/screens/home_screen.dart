@@ -45,6 +45,44 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Future<void> deleteMedicine(int index) async {
+    final Medicine medicine = medicines[index];
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Delete Medicine?"),
+          content: Text('Are you sure you want to delete "${medicine.name}"?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, false);
+              },
+              child: const Text("Cancel"),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, true);
+              },
+              child: const Text("Delete"),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    setState(() {
+      medicines.removeAt(index);
+    });
+
+    await storageService.saveMedicines(medicines);
+
+    debugPrint("Medicine deleted: ${medicine.name}");
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -85,13 +123,20 @@ class _HomeScreenState extends State<HomeScreen> {
             )
           else
             Column(
-              children: medicines.map((medicine) {
+              children: medicines.asMap().entries.map((entry) {
+                final int index = entry.key;
+                final Medicine medicine = entry.value;
                 return ListTile(
                   leading: const Icon(Icons.medication),
                   title: Text(medicine.name),
                   subtitle: Text(
                     "${medicine.hour.toString().padLeft(2, '0')}:"
                     "${medicine.minute.toString().padLeft(2, '0')}",
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: "Delete medicine",
+                    onPressed: () => deleteMedicine(index),
                   ),
                 );
               }).toList(),
