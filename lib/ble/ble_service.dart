@@ -257,7 +257,7 @@ class BleService {
   }
 
   Future<void> clearSchedule(BluetoothDevice device) async {
-    final List<int> packet = [0x04];
+    final List<int> packet = [0x07];
 
     await sendPacket(device, packet);
   }
