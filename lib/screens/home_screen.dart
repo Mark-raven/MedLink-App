@@ -29,6 +29,10 @@ class _HomeScreenState extends State<HomeScreen> {
   bool isScanning = false;
   bool isScanCooldown = false;
 
+  bool isConnecting = false;
+  BluetoothDevice? connectingDevice;
+  BluetoothDevice? connectedDevice;
+
   Future<void> scanDevices() async {
     if (isScanning || isScanCooldown) return;
 
@@ -99,6 +103,92 @@ class _HomeScreenState extends State<HomeScreen> {
     debugPrint("Scanning stopped by user");
 
     await startScanCooldown();
+  }
+
+  Widget _buildDeviceStatus(BluetoothDevice device) {
+    if (connectingDevice?.remoteId == device.remoteId) {
+      return const SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+
+    if (connectedDevice?.remoteId == device.remoteId) {
+      return const Icon(Icons.check_circle);
+    }
+
+    return const Icon(Icons.bluetooth);
+  }
+
+  Future<void> connectToDevice(BluetoothDevice device) async {
+    if (isConnecting) return;
+
+    setState(() {
+      isConnecting = true;
+      connectingDevice = device;
+    });
+
+    debugPrint("Connecting to ${device.platformName}...");
+
+    try {
+      final bool connected = await bleService.connectToDevice(device);
+
+      if (!connected) {
+        if (!mounted) return;
+
+        setState(() {
+          isConnecting = false;
+          connectingDevice = null;
+        });
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Connection Failed")));
+
+        return;
+      }
+
+      debugPrint("Connected to ${device.platformName}");
+
+      // Send current time to the watch.
+      await bleService.sendTime(device);
+
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Clear existing schedules on the watch.
+      await bleService.clearSchedule(device);
+
+      await Future.delayed(const Duration(milliseconds: 200));
+
+      // Send all saved medicines to the watch.
+      await bleService.sendAllSchedules(device, medicines);
+
+      if (!mounted) return;
+
+      setState(() {
+        isConnecting = false;
+        connectingDevice = null;
+        connectedDevice = device;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Connected")));
+    } catch (e) {
+      debugPrint("Connection error: $e");
+
+      if (!mounted) return;
+
+      setState(() {
+        isConnecting = false;
+        connectingDevice = null;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Connection Failed")));
+    }
   }
 
   @override
@@ -289,40 +379,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         ? "Unknown Device"
                         : device.platformName,
                   ),
-
                   subtitle: Text(device.remoteId.str),
-
-                  trailing: const Icon(Icons.bluetooth),
-
-                  onTap: () async {
-                    bool connected = await bleService.connectToDevice(device);
-
-                    if (!connected) {
-                      if (!context.mounted) return;
-
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Connection Failed")),
-                      );
-
-                      return;
-                    }
-
-                    await bleService.sendTime(device);
-
-                    await Future.delayed(const Duration(milliseconds: 500));
-
-                    await bleService.clearSchedule(device);
-
-                    await Future.delayed(const Duration(milliseconds: 200));
-
-                    await bleService.sendAllSchedules(device, medicines);
-
-                    if (!context.mounted) return;
-
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(const SnackBar(content: Text("Connected")));
-                  },
+                  trailing: _buildDeviceStatus(device),
+                  onTap: isConnecting ? null : () => connectToDevice(device),
                 );
               },
             ),
